@@ -2,9 +2,9 @@ import pygame
 
 
 class Settings:
-    screen_size = pygame.math.Vector2(1800, 1000)
+    screen_size = pygame.math.Vector2(1840, 1035)
     screen_size_as_integer = int(screen_size.x), int(screen_size.y)
-    number_of_boids = 10
+    # number_of_boids = 10
     border = 30
     background_colour = pygame.Color('black')
     neighbour_distance = 200
@@ -20,6 +20,8 @@ class Settings:
     player_speed_increase = 1
     player_speed_decrease = 0.5
     player_maximum_speed = 20
+    player_maximum_speed_multiplier = 2
+    player_minimum_speed_multiplier = 0.3
 
     scroll_border_size = 100
     scroll_speed = 10
@@ -56,3 +58,7 @@ class Settings:
     minimum_number_of_babies = 2
     maximum_number_of_babies = 5
     maximum_baby_distance = 20
+
+    leader_weighing_factor = 10
+
+    gate_radius = 27

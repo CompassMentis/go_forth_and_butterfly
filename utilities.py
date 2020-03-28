@@ -1,3 +1,5 @@
+import random
+
 import pygame
 
 
@@ -49,3 +51,17 @@ def distance_between_points(point1, point2):
 
 def normalise_force_to_weight(force, weight):
     return force.normalize() * weight
+
+
+def rotate_in_place(image, angle):
+    target_image = pygame.Surface(image.get_rect().size, pygame.SRCALPHA)
+    rotated_image = pygame.transform.rotate(image, -angle)
+    new_rect = rotated_image.get_rect(center=image.get_rect(topleft=(0, 0)).center)
+    target_image.blit(rotated_image, new_rect.topleft)
+    return target_image
+
+
+# def random_position_away_from(location, distance):
+#     delta_position = pygame.Vector2(0, 0)
+#     delta_position.from_polar((distance, random.randint(0, 359)))
+#     return location + delta_position

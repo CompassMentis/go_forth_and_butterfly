@@ -11,8 +11,8 @@ class Flower:
     seed_image = pygame.image.load('images/seed.png')
     seed_rect = seed_image.get_rect()
 
-    def __init__(self, game, location):
-        self.age = -Settings.flower_seed_period
+    def __init__(self, game, location, age=-Settings.flower_seed_period):
+        self.age = age
         self.location = pygame.Vector2(location)
         self.game = game
         self.canvas = game.canvas
@@ -39,8 +39,8 @@ class Flower:
             )
 
             # TODO: Tidy up?
-            for flock in self.game.flocks:
-                flock.obstacles.append(
+            for level in self.game.levels:
+                level.flock.obstacles.append(
                     Obstacle(location, radius, 1)
                 )
 
@@ -52,7 +52,7 @@ class Flower:
             return
 
         # Draw flower
-        scaling_factor = self.age / Settings.flower_adult_age
+        scaling_factor = max(self.age / Settings.flower_adult_age, 0.1)
         if scaling_factor < 0.97:
             size = int(self._flower_rect.width * scaling_factor), int(self._flower_rect.height * scaling_factor)
             image = pygame.transform.scale(self._flower_image, size)

@@ -34,8 +34,8 @@ class Flock:
             'Boundaries': forces.BoundaryBoxForce(self, 8, 100, Settings.screen_size),
             'Obstacles': forces.ObstacleAvoidanceForce(self, 0.3, 400, self.obstacles),
             'LandingGravity': forces.GravityLandingForce(self, 10),
-            'Attractor': forces.AttractorForce(self)
-            # 'Hunger': forces.HungerForce(self, 50, game.food_sources),
+            'Attractor': forces.AttractorForce(self),
+            'Hunger': forces.HungerForce(self, 550, self.game.food_sources),
             # 'Wind': SteadyForceRule(self, pygame.Vector2(50, 0)),
             # 'Attractors': AttractorsRule(self, 1, [Attractor((300, 300), 50)]),
         }
@@ -142,8 +142,11 @@ class Flock:
         # angle, speed = self.leader.velocity.as_polar()
         # print(int(angle), int(speed))
 
-        # Remove starved boids
-        # self.boids = [boid for boid in self.boids if boid.food > 0]
+        # Remove deceased boids
+        self.boids = [boid for boid in self.boids if boid.alive]
+        if self.leader and not self.leader.alive:
+            if self.boids:
+                self.leader = random.choice(self.boids)
 
     def draw(self):
         [boid.draw() for boid in self.boids]

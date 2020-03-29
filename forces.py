@@ -1,10 +1,15 @@
+import logging
+import random
 import abc
 
 import pygame
 
-import statuses
+import enums
 import utilities
 from settings import Settings
+from states import states
+
+logger = logging.getLogger(__name__)
 
 
 class Force(abc.ABC):
@@ -147,20 +152,24 @@ class HungerForce(Force):
         if not self.food_sources:
             return
 
-        food_sources = [
-            (utilities.distance_between_points(food_source.location, boid.location), food_source)
-            for food_source in self.food_sources
-            if food_source not in boid.exhausted_food_sources
-        ]
+        # TODO: Re-introduce later
+        # food_sources = [
+        #     (utilities.distance_between_points(food_source.location, boid.location), food_source)
+        #     for food_source in self.food_sources
+        #     if food_source not in boid.exhausted_food_sources
+        # ]
 
-        if not food_sources:
-            # food_source = random.choice(self.food_sources)
-            return
+        # if not food_sources:
+        #     # food_source = random.choice(self.food_sources)
+        #     return
+        #
+        # food_sources.sort()
+        # food_source = food_sources[0][1]
 
-        food_sources.sort()
-        food_source = food_sources[0][1]
+        food_source = random.choice(self.food_sources)
 
         force = (food_source.location - boid.location).normalize() * food_source.weight
+        # logger.debug(f'Hungry force applied: {force * duration}')
         boid.apply_force(force * duration)
 
 
@@ -192,5 +201,5 @@ class GravityLandingForce(Force):
         super().__init__(flock, weight)
 
     def apply(self, boid, duration):
-        if boid.status == statuses.BoidStatus.LANDING:
+        if boid.status == states.LANDING:
             boid.apply_force(pygame.Vector2(0, Settings.gravity_velocity) * self.weight)

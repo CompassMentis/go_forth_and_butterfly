@@ -1,3 +1,4 @@
+import os
 import random
 import collections
 import datetime
@@ -7,8 +8,9 @@ import pygame
 from settings import Settings
 
 # TODO: Remove this
-from statuses import BoidStatus, BoidSex
+from enums import BoidSex, Events
 import utilities
+from states import states
 
 random.seed(10)
 
@@ -18,7 +20,13 @@ class AbstractBoid:
 
 
 class Boid:
+    next_id = 0
+
     def __init__(self, flock, location, velocity, sex=None, age=0):
+        self.id = Boid.next_id
+        self.death_clock = None
+        self.alive = True
+        Boid.next_id += 1
         self.flock = flock
         self.game = flock.game
         self.canvas = flock.canvas
@@ -26,8 +34,8 @@ class Boid:
         self.velocity = velocity
         self.sex = random.choice(list(BoidSex)) if sex is None else sex
         self.mass = 1
-        self.history = collections.deque(maxlen=50)
-        self.status = BoidStatus.FLYING
+        # self.history = collections.deque(maxlen=50)
+        self.state = states.FLYING
         self.waiting_period = None
         self.food = Settings.boid_starting_food_level * random.randint(90, 110) / 100
         self.age = age
@@ -38,6 +46,20 @@ class Boid:
         self.exhausted_food_sources = collections.deque(maxlen=4)
         self.feeding_from = None
         self.leader_speed_multiplier = 1
+        self.in_landing_zone = False
+        self.status_icons = {
+            state: pygame.image.load(
+                os.path.join('images', 'statuses', name + '.png')
+            )
+            for state, name in [
+                (states.LANDED, 'landed'),
+                (states.LANDING, 'landing'),
+                (states.SLEEPING, 'sleeping'),
+                (states.DYING, 'dying'),
+                (states.HUNGRY, 'hungry'),
+                (states.FEEDING, 'feeding'),
+            ]
+        }
 
     @property
     def is_leader(self):
@@ -68,21 +90,10 @@ class Boid:
         rect = image.get_rect()
         rect.center = self.location
         self.canvas.blit(image, rect)
-
-        # if self.is_leader:
-        #     pygame.draw.circle(self.canvas, pygame.Color('black'), self.location, 20, 2)
-        #     pygame.draw.circle(self.canvas, pygame.Color('black'), self.location, 40, 1)
-        #     pygame.draw.circle(self.canvas, pygame.Color('white'), self.location, 41, 1)
-        #     pygame.draw.circle(self.canvas, pygame.Color('black'), self.location, 42, 1)
-        # colour = pygame.Color('red') \
-        #     if self.is_hungry \
-        #     else {BoidSex.MALE: pygame.Color('blue'), BoidSex.FEMALE: pygame.Color('green')}[self.sex]
-        # pygame.draw.circle(self.canvas, pygame.Color(colour), self.location, 5)
-        # pygame.draw.line(
-        #     self.canvas, pygame.Color('blue'), self.location, self.location + self.velocity.normalize() * 50, 2
-        # )
-        # if len(self.history) > 1:
-        #     pygame.draw.lines(self.canvas, pygame.Color('green'), closed=False, points=self.history)
+        icon = self.status_icons.get(self.state)
+        if icon:
+            icon_offset = Settings.leader_status_icon_offset if self.is_leader else Settings.boid_status_icon_offset
+            self.canvas.blit(icon, self.location + icon_offset)
 
     def apply_force(self, force, essential=False):
         acceleration = force / self.mass
@@ -90,7 +101,7 @@ class Boid:
         speed, direction = velocity.as_polar()
 
         # Whilst LANDING, any upward force is ignored (anything above 180 degrees)
-        if self.status == BoidStatus.LANDING and force and not essential:
+        if self.state == states.LANDING and force and not essential:
             direction = direction % 360
             if direction > 180:
                 return
@@ -138,11 +149,11 @@ class Boid:
         self.leader_speed_multiplier = 1
 
     def toggle_landing(self):
-        if self.status in [BoidStatus.LANDED, BoidStatus.LANDING]:
-            self.status = BoidStatus.FLYING
+        if self.state in [states.LANDED, states.LANDING]:
+            self.state = states.FLYING
             print('Flying')
         else:
-            self.status = BoidStatus.LANDING
+            self.state = states.LANDING
             print('Landing')
 
     def landed_on_food_source(self):
@@ -167,21 +178,24 @@ class Boid:
 
         assert direction in ['previous', 'next']
         if direction == 'next':
-            target_level = self.game.next_level(self.flock.level)
-            target_position = target_level.entrance_gate_position
+            self.game.handle_event(Events.THROUGH_EXIT_GATE, self)
+            # target_level = self.game.next_level(self.flock.level)
+            # target_position = target_level.entrance_gate_position
         else:
-            target_level = self.game.previous_level(self.flock.level)
-            target_position = target_level.exit_gate_position
-
-        if self.is_leader:
-            self.flock.leader = None
-            target_level.flock.leader = self
-
-        self.flock.boids.remove(self)
-        target_level.flock.boids.append(self)
-        self.flock = target_level.flock
-
-        self.location = target_position + self.velocity.normalize() * Settings.gate_radius * 2.5
+            self.game.handle_event(Events.THROUGH_ENTRANCE_GATE, self)
+        #     self
+        #     target_level = self.game.previous_level(self.flock.level)
+        #     target_position = target_level.exit_gate_position
+        #
+        # if self.is_leader:
+        #     self.flock.leader = None
+        #     target_level.flock.leader = self
+        #
+        # self.flock.boids.remove(self)
+        # target_level.flock.boids.append(self)
+        # self.flock = target_level.flock
+        #
+        # self.location = target_position + self.velocity.normalize() * Settings.gate_radius * 2.5
 
     def check_exit_gate(self):
         # The leader can only exit the level once it is complete
@@ -194,99 +208,61 @@ class Boid:
         if self.is_leader:
             self.check_gate(self.flock.level.entrance_gate_position, 'previous')
 
-    def update(self, duration):
-        self.history.append(list(self.location))
-        self.food -= duration
-        self.age += duration
-        self.location += self.velocity * duration
-        self.check_exit_gate()
-        self.check_entrance_gate()
+    def check_landing_zone(self):
+        if self.location.y > self.flock.level.landing_zone_top:
+            if not self.in_landing_zone:
+                self.game.handle_event(Events.LANDING_ZONE_ENTERED, self)
+                self.in_landing_zone = True
+        else:
+            self.in_landing_zone = False
 
-        # if self.potential_mate and (self.potential_mate.recently_mated or self.potential_mate.is_hungry):
-        #     self.potential_mate = None
-        #
-        # # TODO: Separate functions for during_mating_season and start_of_mating_season?
-        # if self.game.is_mating_season and self.sex == BoidSex.FEMALE and not self.is_hungry and not self.recently_mated:
-        #     if self.potential_mate is None:
-        #         potential_mates = [
-        #             boid
-        #             for boid in self.flock.boids
-        #             if boid.sex == BoidSex.MALE
-        #                and boid.status == BoidStatus.WAITING_TO_MATE
-        #                and not boid.recently_mated
-        #         ]
-        #         if potential_mates:
-        #             self.potential_mate = random.choice(potential_mates)
-        #             self.status = BoidStatus.LANDING_TO_MATE
-        #
-        # if not self.game.is_mating_season or self.is_hungry:
-        #     self.potential_mate = None
-        #
-        # if self.potential_mate:
-        #     self.apply_force(
-        #         utilities.normalise_force_to_weight(
-        #             self.potential_mate.location - self.location, Settings.mating_attraction_force_weight
-        #         ), essential=True
-        #     )
-        #
-        # # During mating season, start landing or, if hungry, start flying
-        # if self.game.is_mating_season and self.sex == BoidSex.MALE and not self.is_hungry:
-        #     if self.status == BoidStatus.FLYING:
-        #         self.status = BoidStatus.LANDING_TO_MATE
-        #
-        # if self.is_hungry and self.status in [BoidStatus.LANDING_TO_MATE, BoidStatus.WAITING_TO_MATE]:
-        #     self.status = BoidStatus.FLYING
-        #     self.apply_force(pygame.Vector2(0, -10), essential=True)
-        #
-        # if not self.game.is_mating_season:
-        #     if self.status == BoidStatus.WAITING_TO_MATE:
-        #         self.status = BoidStatus.FLYING
-        #         self.apply_force(pygame.Vector2(0, -10), essential=True)
-        #     elif self.status == BoidStatus.LANDING_TO_MATE:
-        #         self.status = BoidStatus.FLYING
-        #
-        # if self.status == BoidStatus.FEEDING:
-        #
-        #     # Any food left? If so, eat
+    def check_food_sources(self):
+        if self.state == states.HUNGRY:
+            for food_source in self.flock.level.game.food_sources:
+                if utilities.distance_between_points(self.location, food_source.location) < food_source.radius:
+                    self.feeding_from = food_source
+                    self.game.handle_event(Events.START_FEEDING, self)
+
+    def check_hungry(self, duration):
+        was_hungry = self.is_hungry
+        if self.game.boids_need_food:
+            self.food -= duration
+        if self.is_hungry and not was_hungry:
+            self.game.handle_event(Events.GOT_HUNGRY, self)
+        if self.food < 0 and self.state is not states.DYING:
+            self.game.handle_event(Events.STARVING, self)
+
+    def feed(self, duration):
+        if self.state is not states.FEEDING:
+            return
+
+        self.food += duration * Settings.feeding_speed
+
+        if self.food >= Settings.boid_maximum_food_level:
+            self.game.handle_event(Events.REPLETE)
+
         #     if self.feeding_from.level > 0.1:
         #         food = min(self.feeding_from.level, duration * Settings.feeding_speed, Settings.boid_maximum_food_level - self.food)
         #         self.feeding_from.level -= food
         #         self.food += food
         #         return
-        #
-        #     # No food left, start flying
-        #     self.exhausted_food_sources.append(self.feeding_from)
-        #     self.feeding_from = None
-        #     self.status = BoidStatus.FLYING
-        #     return
-        #
-        # if self.is_hungry:
-        #     # Hungry. Have we reached a food source?
-        #     food_source = self.landed_on_food_source()
-        #     if food_source:
-        #         self.status = BoidStatus.FEEDING
-        #         self.feeding_from = food_source
-        #
-        # if self.status in [BoidStatus.FLYING, BoidStatus.LANDING, BoidStatus.LANDING_TO_MATE]:
-        #     self.location += (self.velocity * duration)
-        #
-        # if self.status in [BoidStatus.LANDING, BoidStatus.LANDING_TO_MATE] \
-        #         and self.location.y >= (Settings.screen_size.y - Settings.landing_range):
-        #     self.location.y = Settings.screen_size.y - Settings.landing_range
-        #     if self.status == BoidStatus.LANDING_TO_MATE:
-        #         if self.potential_mate:
-        #             self.potential_mate.last_mated = self.potential_mate.age
-        #             self.last_mated = self.age
-        #             self.flock.make_babies(self.location)
-        #             self.status = BoidStatus.FLYING
-        #             self.potential_mate.status = BoidStatus.FLYING
-        #         self.status = BoidStatus.WAITING_TO_MATE
-        #     else:
-        #         self.status = BoidStatus.LANDED
-        #         print('Landed')
-        #         self.waiting_period = Settings.landed_period
-        #
-        # elif self.status == BoidStatus.LANDED:
-        #     self.waiting_period -= duration
-        #     if self.waiting_period <= 0:
-        #         self.status = BoidStatus.FLYING
+
+    def update(self, duration):
+        # self.history.append(list(self.location))
+
+        self.check_hungry(duration)
+        self.check_food_sources()
+        self.feed(duration)
+        self.age += duration
+        if self.state not in [states.LANDED, states.SLEEPING, states.FEEDING]:
+            self.location += self.velocity * duration
+        self.check_exit_gate()
+        self.check_entrance_gate()
+        self.check_landing_zone()
+        if self.state == states.DYING:
+            self.death_clock -= duration
+            if self.death_clock <= 0:
+                self.alive = False
+
+    def __str__(self):
+        return f'<leader ({self.state})>' if self.is_leader else f'<boid {self.id} ({self.state})>'

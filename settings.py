@@ -48,10 +48,10 @@ class Settings:
     flower_food_source_radius = 45
     flower_food_source_starting_level = 100
     flower_food_source_maximum_level = 100
-    flower_food_source_weight = 100
+    flower_food_source_weight = 500
     flower_food_source_top_up_speed = 5
 
-    feeding_speed = 5
+    feeding_speed = 10
     mating_attraction_force_weight = 50
     minimum_time_between_matings = 5
 
@@ -62,3 +62,60 @@ class Settings:
     leader_weighing_factor = 10
 
     gate_radius = 27
+
+    shouting_distance = 900
+    shouting_force = 100
+
+    time_keeper_location = pygame.Vector2(85, 85)
+    time_keeper_radius = 49
+
+    sunrise_start_angle = 45
+    day_start_angle = 69
+    sunset_start_angle = 360 - day_start_angle
+    night_start_angle = 360 - sunrise_start_angle
+
+    # To simplify this, calculations (and the game) starts at
+    # the start of the day
+    time_keeper_angle_offset = day_start_angle
+
+    day_start_angle -= time_keeper_angle_offset
+    sunset_start_angle = (sunset_start_angle - time_keeper_angle_offset) % 360
+    night_start_angle = (night_start_angle - time_keeper_angle_offset) % 360
+    sunrise_start_angle = (sunrise_start_angle - time_keeper_angle_offset) % 360
+
+    day_angle_duration = sunset_start_angle
+    sunset_angle_duration = night_start_angle - sunset_start_angle
+    night_angle_duration = sunrise_start_angle - night_start_angle
+    sunrise_angle_duration = day_start_angle - sunrise_start_angle + 360
+
+    day_duration = 100
+    sunset_duration = 20
+    sunrise_duration = sunset_duration
+    night_duration = 5
+    time_keeper_one_day_duration = \
+        day_duration + \
+        sunset_duration + \
+        sunrise_duration + \
+        night_duration
+
+    day_start_time = 0
+    sunset_start_time = day_start_time + day_duration
+    night_start_time = sunset_start_time + sunset_duration
+    sunrise_start_time = night_start_time + night_duration
+
+    # The larger this number, the faster the game goes
+    # At 1, a day lasts time_keeper_total_duration seconds
+    time_keeper_multiplier = 1
+
+    boid_status_icon_offset = pygame.Vector2(16, 0)
+    leader_status_icon_offset = pygame.Vector2(33, -9)
+
+    time_to_die = 3
+
+    console_location = pygame.Vector2(33, 835)
+
+    help_text_location = pygame.Vector2(60, 70)
+    line_spacing = 40
+    font_size = 36
+
+    console_text_location = console_location + pygame.Vector2(20, 5)
